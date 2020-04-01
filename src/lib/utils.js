@@ -88,6 +88,25 @@ let pick = (routes, uri) => {
         );
         let value = decodeURIComponent(uriSegment);
         params[dynamicMatch[1]] = value;
+      } else if (multimatchSegmentRe.test(routeSegment)) {
+        let trailingSegments =
+          routeSegments.length > index + 1
+            ? "/" + routeSegments.slice(index + 1).join("/")
+            : "";
+        let multiMatchRoutes = routeSegment
+          .slice(1, -1) // remove brackets
+          .split("|")
+          .map(multiMatchRoute => ({
+            path: multiMatchRoute + trailingSegments
+          }));
+        let match = pick(multiMatchRoutes, uriSegments.slice(index).join("/"));
+        if (!match) {
+          missed = true;
+          break;
+        }
+        Object.assign(params, match.params);
+        index += match.uri.slice(1).split("/").length;
+        break;
       } else if (routeSegment !== uriSegment) {
         // Current segments don't match, not dynamic, not splat, so no match
         // uri:   /users/123/settings
@@ -209,6 +228,8 @@ let validateRedirect = (from, to) => {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Junk
+let leadingAndTrailingSlashRe = /(^\/+|\/+$)/g;
+let multimatchSegmentRe = /\([^)]+\|[^)]+\)/g;
 let paramRe = /^:(.+)/;
 
 let SEGMENT_POINTS = 4;
@@ -242,11 +263,20 @@ let rankRoutes = routes =>
       a.score < b.score ? 1 : a.score > b.score ? -1 : a.index - b.index
     );
 
-let segmentize = uri =>
-  uri
-    // strip starting/ending slashes
-    .replace(/(^\/+|\/+$)/g, "")
-    .split("/");
+let segmentize = uri => {
+  let trimmedUri = uri.replace(leadingAndTrailingSlashRe, "");
+  // multimatch segments could contain slash, handle with care
+  let multiMatchSegments = trimmedUri.match(multimatchSegmentRe);
+  // without multimatch segments simply split by slash
+  if (!multiMatchSegments) return trimmedUri.split("/");
+  // otherwise split by splash all parts around multimatch segments
+  return trimmedUri.split(multimatchSegmentRe).reduce((acc, part, idx) => {
+    let trimmed = part.replace(leadingAndTrailingSlashRe, "");
+    if (trimmed) Array.prototype.push.apply(acc, trimmed.split("/"));
+    if (multiMatchSegments[idx]) acc.push(multiMatchSegments[idx]);
+    return acc;
+  }, []);
+};
 
 let addQuery = (pathname, query) => pathname + (query ? `?${query}` : "");
 

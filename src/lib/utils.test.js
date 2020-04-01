@@ -49,6 +49,44 @@ describe("pick", () => {
     let routes = [{ path: "/users/:userId" }];
     expect(pick(routes, "/users/ryan?cool=stuff")).toMatchSnapshot();
   });
+
+  test("multiple possible segments", () => {
+    let routes = [{ path: "/users/(foo|bar)" }];
+    expect(pick(routes, "/users/foo")).toEqual({
+      route: { path: "/users/(foo|bar)" },
+      params: {},
+      uri: "/users/foo"
+    });
+  });
+
+  test("multiple possible nested segments with deep splat", () => {
+    let routes = [{ path: "/users/(foo|bar/*)" }];
+    expect(pick(routes, "/users/bar/baz")).toEqual({
+      route: { path: "/users/(foo|bar/*)" },
+      params: {
+        "*": "baz"
+      },
+      uri: "/users/bar"
+    });
+  });
+
+  test("multiple possible nested segments with more segments at the end", () => {
+    let routes = [{ path: "/users/(foo|bar)/baz" }];
+    expect(pick(routes, "/users/bar/baz")).toEqual({
+      route: { path: "/users/(foo|bar)/baz" },
+      params: {},
+      uri: "/users/bar/baz"
+    });
+  });
+
+  test("multiple possible nested segments from root", () => {
+    let routes = [{ path: "(/foo|/bar)" }];
+    expect(pick(routes, "/bar")).toEqual({
+      route: { path: "(/foo|/bar)" },
+      params: {},
+      uri: "/bar"
+    });
+  });
 });
 
 describe("match", () => {
